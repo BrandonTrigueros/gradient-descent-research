@@ -49,8 +49,8 @@
 
 \lstset{style=pythonstyle}
 
-\title{Implementación de técnicas de descenso de gradiente estocástico y variantes}
-\author{Juan Pérez, Ana Gómez}
+\title{Implementación de técnicas de descenso de gradiente estocástico y variantes: Una perspectiva desde el análisis numérico}
+\author{Brandon Trigueros}
 \date{}
 
 \begin{document}
@@ -58,7 +58,7 @@
 \maketitle
 
 \begin{abstract}
-El descenso de gradiente es un método general para optimizar funciones y se emplea ampliamente en el entrenamiento de modelos de aprendizaje automático. En este trabajo se investigan el \textbf{descenso de gradiente estocástico (SGD)} y varias de sus \textbf{variantes modernas (momentum, RMSProp, Adam)} enfocadas en acelerar la convergencia y mejorar la estabilidad. Se presenta una introducción accesible a los fundamentos de estos métodos, incluyendo sus fórmulas de actualización y motivación intuitiva, dirigido a estudiantes de disciplinas no computacionales. Además, se desarrolla un caso de estudio implementando cada técnica en Python para entrenar un modelo de regresión logística binaria sobre el conjunto de datos \textbf{Iris}. Se muestran fragmentos de código comentado y visualizaciones de las curvas de error durante el entrenamiento para comparar la rapidez de convergencia de cada optimizador. Los resultados indican que métodos adaptativos como Adam y RMSProp suelen converger más rápido que SGD básico, mientras que el uso de momentum puede acelerar SGD pero requiere una cuidadosa calibración de la tasa de aprendizaje. Se discuten las ventajas y limitaciones de cada método y se concluye con observaciones sobre el rendimiento, junto con posibles extensiones como el ajuste de hiperparámetros, el uso de variantes adicionales y consideraciones sobre la generalización del modelo. La mayor parte de las referencias provienen de literatura reciente, siguiendo el estilo IEEE, para respaldar teóricamente las técnicas presentadas.
+El descenso de gradiente es un método fundamental para optimizar funciones y se emplea ampliamente en el entrenamiento de modelos de aprendizaje automático. En este trabajo se investigan el \textbf{descenso de gradiente estocástico (SGD)} y varias de sus \textbf{variantes modernas (momentum, RMSProp, Adam)} desde la perspectiva del análisis numérico, enfocándose en su relación con métodos clásicos de optimización como Newton-Raphson y su papel en el compromiso entre velocidad de convergencia y escalabilidad computacional. Se presenta una introducción accesible a los fundamentos de estos métodos, contextualizándolos dentro del marco teórico del análisis numérico, incluyendo sus fórmulas de actualización y motivación intuitiva, dirigido a estudiantes de disciplinas cuantitativas. Se establece la conexión entre métodos de primer y segundo orden, explicando por qué los métodos adaptativos modernos pueden interpretarse como aproximaciones computacionalmente eficientes de información de curvatura. Además, se desarrolla un caso de estudio implementando cada técnica en Python para entrenar un modelo de regresión logística binaria sobre el conjunto de datos \textbf{Iris}. Se muestran fragmentos de código comentado y visualizaciones de las curvas de error durante el entrenamiento para comparar la rapidez de convergencia de cada optimizador. Los resultados indican que métodos adaptativos como Adam y RMSProp suelen converger más rápido que SGD básico, mientras que el uso de momentum puede acelerar SGD pero requiere una cuidadosa calibración de la tasa de aprendizaje. Se discuten las ventajas y limitaciones de cada método desde la perspectiva del análisis numérico, incluyendo consideraciones sobre el costo computacional, requerimientos de memoria, y propiedades de convergencia. Se concluye con observaciones sobre el rendimiento y una reflexión sobre el papel central que juegan estos métodos en el aprendizaje automático moderno como soluciones escalables al problema fundamental de optimización en alta dimensión. Las referencias incluyen tanto literatura clásica de análisis numérico como trabajos recientes en optimización para aprendizaje automático, siguiendo el estilo IEEE.
 \end{abstract}
 
 \section{Introducción}
@@ -71,6 +71,38 @@ Debido a su eficiencia, SGD es ampliamente utilizado en el entrenamiento de mode
 El objetivo de este artículo es explicar claramente los fundamentos teóricos de SGD y sus variantes mencionadas, proporcionando ecuaciones y ejemplos ilustrativos, y luego demostrar su implementación práctica en un problema de clasificación real. La audiencia prevista son estudiantes de cursos de Análisis Numérico u otras ingenierías, que quizás no estén familiarizados con detalles de computación o aprendizaje automático. Por ello, se ha puesto énfasis en introducir los conceptos de forma accesible y construir la intuición detrás de cada técnica, antes de sumergirse en las formulaciones matemáticas. A continuación, en la sección de Fundamentos Teóricos, se describen en detalle el descenso de gradiente básico y las tres variantes (Momentum, RMSProp, Adam), junto con sus respectivas fórmulas de actualización. Posteriormente, en la sección de Implementación y Resultados, se aplica cada método al entrenamiento de una regresión logística binaria sobre el conocido conjunto de datos Iris de plantas, examinando empíricamente las diferencias en velocidad de convergencia y rendimiento. Finalmente, se presentan las conclusiones destacando las fortalezas y debilidades de cada método y posibles trabajos futuros o extensiones.
 
 \section{Fundamentos teóricos de los métodos de optimización}
+
+\subsection{Contexto desde el análisis numérico}
+Los métodos de optimización estudiados en este trabajo forman parte de una familia más amplia de técnicas numéricas para resolver problemas de minimización de funciones. En el contexto del análisis numérico, es fundamental comprender la posición que ocupan estos algoritmos en relación con métodos clásicos como Newton-Raphson y quasi-Newton.
+
+El \textbf{método de Newton-Raphson para optimización} (también conocido como método de Newton multivariable) representa el estándar de referencia en términos de velocidad de convergencia. Para minimizar una función $J(\boldsymbol{\theta})$, Newton-Raphson utiliza información tanto del gradiente (primera derivada) como del Hessiano (segunda derivada):
+\[
+\boldsymbol{\theta}_{t+1} = \boldsymbol{\theta}_t - \mathbf{H}^{-1}(\boldsymbol{\theta}_t) \nabla J(\boldsymbol{\theta}_t),
+\]
+donde $\mathbf{H}(\boldsymbol{\theta}_t)$ es la matriz Hessiana evaluada en $\boldsymbol{\theta}_t$. Este método tiene \textbf{convergencia cuadrática}, lo que significa que cerca del óptimo, el error se reduce aproximadamente al cuadrado en cada iteración \cite{ref12}. En problemas bien condicionados y con buena inicialización, Newton-Raphson puede converger en muy pocas iteraciones (típicamente 5-10).
+
+Sin embargo, Newton-Raphson presenta limitaciones fundamentales que lo hacen impracticable en problemas de gran escala:
+
+\begin{enumerate}
+\item \textbf{Costo computacional}: Calcular la matriz Hessiana requiere $O(n^2)$ evaluaciones de segundas derivadas, y su inversión tiene complejidad $O(n^3)$, donde $n$ es el número de parámetros.
+\item \textbf{Requerimientos de memoria}: Almacenar el Hessiano requiere $O(n^2)$ memoria. Para modelos modernos con millones de parámetros, esto es impracticable.
+\item \textbf{Problemas de estabilidad}: El Hessiano puede no ser positivo definido, lo que hace que la dirección de Newton no sea de descenso.
+\end{enumerate}
+
+Para ilustrar la magnitud del problema, consideremos un modelo de aprendizaje profundo moderno con $n = 10^8$ parámetros (relativamente pequeño según estándares actuales). La matriz Hessiana tendría $10^{16}$ elementos, requiriendo aproximadamente 80 petabytes de memoria solo para almacenarse, sin considerar las operaciones de inversión.
+
+Los \textbf{métodos quasi-Newton} (como BFGS y L-BFGS) intentan remediar estos problemas aproximando la inversa del Hessiano sin calcularla explícitamente \cite{ref12}. Estos métodos mantienen convergencia superlineal (mejor que lineal, peor que cuadrática) mientras reducen la complejidad computacional. Sin embargo, incluso L-BFGS, la variante más eficiente en memoria, requiere $O(m \cdot n)$ memoria adicional, donde $m$ es el número de vectores de corrección almacenados (típicamente 10-20).
+
+En este contexto, el \textbf{descenso de gradiente y sus variantes} representan métodos de \textbf{primer orden} que sacrifican velocidad de convergencia por escalabilidad. Utilizan únicamente información del gradiente, requiriendo solo $O(n)$ memoria y $O(n)$ operaciones por iteración. Aunque su convergencia es lineal (el error se reduce por un factor constante en cada iteración), pueden manejar problemas con miles de millones de parámetros.
+
+Es importante reconocer que las variantes modernas de SGD (especialmente Adam y RMSProp) incorporan implícitamente aproximaciones de información de segundo orden. Adam, por ejemplo, puede interpretarse como una aproximación diagonal del método de Newton:
+\[
+\boldsymbol{\theta}_{t+1} \approx \boldsymbol{\theta}_t - \text{diag}(\mathbf{H}^{-1})_{\text{aprox}} \nabla J(\boldsymbol{\theta}_t),
+\]
+donde $\text{diag}(\mathbf{H}^{-1})_{\text{aprox}}$ se estima a partir de los segundos momentos de los gradientes \cite{ref13}. Esta perspectiva explica por qué Adam frecuentemente supera al SGD básico: incorpora una forma limitada pero computacionalmente eficiente de curvatura de segundo orden.
+
+La elección entre estos métodos en la práctica depende del balance entre recursos computacionales disponibles, tamaño del problema, y precisión requerida. Para problemas pequeños a medianos (hasta $\sim 10^4$ parámetros), métodos quasi-Newton pueden ser superiores. Para problemas de gran escala en aprendizaje automático, los métodos de primer orden son prácticamente la única opción viable.
+
 \subsection{Descenso de gradiente (Batch Gradient Descent)}
 Supongamos que tenemos una función de costo $J(\boldsymbol{\theta})$ que depende de un vector de parámetros $\boldsymbol{\theta} = (\theta_1, \theta_2, \ldots, \theta_m)$. El descenso de gradiente estándar actualiza los parámetros iterativamente en dirección opuesta al gradiente (derivada) de la función de costo con respecto a esos parámetros. En fórmula, la regla de actualización de descenso por gradiente por lotes es:
 \[
@@ -360,19 +392,47 @@ En términos de \textbf{precisión de clasificación}, todos los métodos lograr
 Donde sí vemos diferencias notables es en la \textbf{velocidad de entrenamiento y estabilidad}: Adam fue claramente el más eficiente, logrando buen desempeño en pocas iteraciones y con mínima necesidad de ajuste manual. RMSProp también fue eficiente pero mostró algo más de variabilidad. SGD requirió más iteraciones para acercarse al mínimo y su trayectoria es más errática inicialmente. Momentum tuvo un comportamiento mixto: muy rápido al descender pero difícil de controlar, requiriendo calibración de $\eta$ para evitar inestabilidad. Estos hallazgos concuerdan con lo reportado en la literatura: Adam suele converger más rápido y de forma más confiable que SGD estándar \cite{ref2}, especialmente en problemas con gradientes ruidosos, mientras que momentum puede acelerar SGD pero debe usarse con precaución para no inducir grandes sobreoscilaciones \cite{ref4}.
 
 \section{Conclusiones}
-En esta investigación se estudiaron y compararon el descenso de gradiente estocástico (SGD) y tres variantes modernas (Momentum, RMSProp y Adam) desde una perspectiva teórica y práctica. En el marco teórico, explicamos que SGD reduce el costo de cómputo por iteración usando muestras aleatorias, a costa de introducir ruido en las actualizaciones \cite{ref1}. Cada variante abordó este compromiso de manera diferente: Momentum añadió un término de impulso para aprovechar la inercia y suavizar la trayectoria \cite{ref4}, RMSProp ajustó dinámicamente la escala de los pasos por parámetro para lidiar con gradientes de distintas magnitudes \cite{ref3}, y Adam combinó ambos enfoques logrando un método robusto y en gran medida autoajustable \cite{ref2}.
+En esta investigación se estudiaron y compararon el descenso de gradiente estocástico (SGD) y tres variantes modernas (Momentum, RMSProp y Adam) desde una perspectiva teórica y práctica, enmarcándolos dentro del contexto más amplio del análisis numérico y los métodos de optimización.
+
+\subsection{Perspectiva del análisis numérico}
+Desde el punto de vista del análisis numérico, este trabajo ilustra el compromiso fundamental entre \textbf{velocidad de convergencia y escalabilidad computacional}. Mientras que métodos de segundo orden como Newton-Raphson ofrecen convergencia cuadrática óptima, su costo computacional $O(n^3)$ y requerimientos de memoria $O(n^2)$ los hacen impracticables para problemas modernos de gran escala.
+
+Los métodos estudiados representan diferentes estrategias para aproximar información de segundo orden con costo computacional de primer orden:
+\begin{itemize}
+\item \textbf{SGD básico}: Método de gradiente puro sin aproximaciones adicionales
+\item \textbf{Momentum}: Incorpora información histórica del gradiente, aproximando aspectos de la curvatura
+\item \textbf{RMSProp}: Aproxima elementos diagonales del precondicionador basado en segundos momentos
+\item \textbf{Adam}: Combina momentum y normalización adaptativa, aproximando una versión diagonal de métodos quasi-Newton
+\end{itemize}
+
+Esta progresión muestra cómo la comunidad de aprendizaje automático ha desarrollado métodos que, aunque mantienen la escalabilidad de primer orden, incorporan elementos de métodos de segundo orden de manera computacionalmente eficiente.
+
+\subsection{Resultados experimentales}
+En el marco teórico, explicamos que SGD reduce el costo de cómputo por iteración usando muestras aleatorias, a costa de introducir ruido en las actualizaciones \cite{ref1}. Cada variante abordó este compromiso de manera diferente: Momentum añadió un término de impulso para aprovechar la inercia y suavizar la trayectoria \cite{ref4}, RMSProp ajustó dinámicamente la escala de los pasos por parámetro para lidiar con gradientes de distintas magnitudes \cite{ref3}, y Adam combinó ambos enfoques logrando un método robusto y en gran medida autoajustable \cite{ref2}.
 
 Los experimentos con regresión logística confirmaron varias expectativas teóricas. Adam destacó por su \textbf{rápida convergencia y facilidad de uso} (poca necesidad de ajustar hiperparámetros), alcanzando el mínimo de la función de costo en menos iteraciones que los demás. RMSProp también mostró convergencia acelerada respecto a SGD estándar. El método de momentum evidenció su capacidad de \textbf{acelerar el descenso inicial}, aunque también su tendencia a \textbf{oscilaciones} si la tasa de aprendizaje no se ajusta correctamente – en nuestro caso fue necesario reducir $\eta$ para obtener estabilidad. SGD básico, aun siendo el más lento, eventualmente se acerca al óptimo con suficiente número de épocas, y mantiene la ventaja de una implementación simple.
 
 En cuanto al \textbf{rendimiento final del modelo} (precisión de clasificación en el dataset Iris), no hubo diferencias significativas entre los optimizadores una vez convergidos, lo cual era previsible dado que todos optimizan la misma función objetivo. Sin embargo, es importante notar que en otros problemas más complejos (por ejemplo, entrenar redes neuronales profundas en grandes conjuntos de datos), las diferencias de velocidad de convergencia pueden traducirse en ventajas prácticas enormes al utilizar métodos como Adam. Por ello, Adam se ha convertido en una elección por defecto en muchos algoritmos de aprendizaje profundo \cite{ref2}.
 
-No obstante, \textbf{no existe un método universalmente óptimo para todos los casos}. Por ejemplo, investigaciones recientes indican que los algoritmos adaptativos (Adam, RMSProp) pueden conducir a soluciones que generalizan peor que SGD puro en ciertos escenarios \cite{ref5}. Una posible explicación es que SGD, al realizar actualizaciones más ruidosas pero uniformes, podría favorecer mínimos más "planos" que tienden a generalizar mejor, mientras que Adam puede quedarse en mínimos "afilados" \cite{ref5}. Una estrategia recomendada es usar \textbf{optimización híbrida}: empezar con Adam para aprovechar su rapidez y luego cambiar a SGD en la fase final del entrenamiento \cite{ref5}.
+\subsection{Implicaciones para la práctica}
+No obstante, \textbf{no existe un método universalmente óptimo para todos los casos}. La elección del optimizador debe considerar:
+
+\begin{enumerate}
+\item \textbf{Escala del problema}: Para problemas pequeños ($n < 10^4$), métodos quasi-Newton pueden ser superiores. Para problemas masivos, métodos de primer orden son la única opción práctica.
+\item \textbf{Recursos computacionales}: Adam y RMSProp requieren memoria adicional para almacenar momentos, mientras que SGD básico es minimal en memoria.
+\item \textbf{Generalización}: Investigaciones recientes indican que los algoritmos adaptativos (Adam, RMSProp) pueden conducir a soluciones que generalizan peor que SGD puro en ciertos escenarios \cite{ref5}. Una posible explicación es que SGD, al realizar actualizaciones más ruidosas pero uniformes, podría favorecer mínimos más "planos" que tienden a generalizar mejor, mientras que Adam puede quedarse en mínimos "afilados" \cite{ref5}.
+\end{enumerate}
+
+Una estrategia recomendada es usar \textbf{optimización híbrida}: empezar con Adam para aprovechar su rapidez y luego cambiar a SGD en la fase final del entrenamiento \cite{ref5}, combinando así la eficiencia de convergencia inicial con las propiedades de generalización del SGD.
+
+\subsection{Trabajos futuros}
+Como trabajos futuros o extensiones naturales de esta investigación, se sugiere: (1) experimentar con otros optimizadores no cubiertos aquí, como \textbf{Adagrad, Adadelta, Nadam (Adam con Nesterov) o AMSGrad}, y comparar su comportamiento; (2) aplicar estos algoritmos a modelos más complejos (por ej. una red neuronal profunda) para evaluar las diferencias en un escenario no convexo de gran escala; (3) investigar estrategias de decaimiento de la tasa de aprendizaje o schedulers (p. ej. reducir $\eta$ según la época o cuando la mejora se detiene) en conjunto con cada optimizador; (4) analizar el impacto en la \textbf{generalización} de cada método, posiblemente reproduciendo estudios como el de Keskar et al. 2017 sobre mínimos planos vs. afilados \cite{ref5}; y (5) desarrollar aproximaciones más sofisticadas de información de segundo orden que mantengan la escalabilidad computacional.
+
+Desde la perspectiva del análisis numérico, sería valioso explorar conexiones más profundas con métodos de optimización clásicos, como el desarrollo de precondicionadores adaptativos inspirados en técnicas de álgebra linear numérica, o el análisis de convergencia bajo diferentes condiciones de número de condición de la matriz Hessiana.
 
 En conclusión, la implementación de técnicas de descenso de gradiente estocástico y sus variantes permite acelerar y estabilizar el proceso de optimización en problemas de aprendizaje automático. \textbf{SGD con momentum es útil} para problemas con superficies de error complicadas, siempre que se ajuste bien la tasa de aprendizaje. \textbf{RMSProp y métodos adaptativos similares} facilitan el entrenamiento en presencia de características de distinta escala o gradientes escasos, al ajustar automáticamente los pasos por parámetro. \textbf{Adam incorpora lo mejor de ambos mundos} y suele ofrecer un desempeño sobresaliente de forma predeterminada, aunque conviene monitorear la capacidad de generalización del modelo entrenado con este método.
 
-Como trabajos futuros o extensiones naturales de esta investigación, se sugiere: (1) experimentar con otros optimizadores no cubiertos aquí, como \textbf{Adagrad, Adadelta, Nadam (Adam con Nesterov) o AMSGrad}, y comparar su comportamiento; (2) aplicar estos algoritmos a modelos más complejos (por ej. una red neuronal profunda) para evaluar las diferencias en un escenario no convexo de gran escala; (3) investigar estrategias de decaimiento de la tasa de aprendizaje o schedulers (p. ej. reducir $\eta$ según la época o cuando la mejora se detiene) en conjunto con cada optimizador; y (4) analizar el impacto en la \textbf{generalización} de cada método, posiblemente reproduciendo estudios como el de Keskar et al. 2017 sobre mínimos planos vs. afilados \cite{ref5}. Este tipo de exploraciones ayudaría a determinar en qué condiciones específicas un optimizador supera a los demás y cómo combinarlos para aprovechar sus ventajas.
-
-Finalmente, cabe resaltar que todos los métodos estudiados comparten la filosofía básica de utilizar información del gradiente para guiar la búsqueda del mínimo. Las variantes introducen diferentes formas de usar la información histórica o estadística de los gradientes para hacer el proceso más eficiente. Entender estos fundamentos permite al analista escoger la herramienta apropiada según el problema en cuestión, y eventualmente, diseñar nuevos algoritmos de optimización híbridos o mejorados. En síntesis, el \textbf{descenso de gradiente estocástico y sus variantes conforman un pilar central del aprendizaje automático moderno}, y su correcta implementación y ajuste puede marcar la diferencia en la rapidez y éxito del entrenamiento de modelos en aplicaciones del mundo real.
+Finalmente, cabe resaltar que todos los métodos estudiados comparten la filosofía básica de utilizar información del gradiente para guiar la búsqueda del mínimo, pero difieren en cómo incorporan información histórica o estadística para hacer el proceso más eficiente. Entender estos fundamentos desde la perspectiva del análisis numérico permite al analista escoger la herramienta apropiada según el problema en cuestión, y eventualmente, diseñar nuevos algoritmos de optimización híbridos o mejorados. En síntesis, el \textbf{descenso de gradiente estocástico y sus variantes conforman un pilar central del aprendizaje automático moderno}, representando una solución elegante al compromiso entre velocidad de convergencia y escalabilidad computacional que caracteriza los desafíos de optimización en la era de los datos masivos.
 
 \begin{thebibliography}{99}
 \bibitem{ref1} 
@@ -407,6 +467,15 @@ Performance comparison of ADAM and AMSGRAD for logistic regression,... | Downloa
 
 \bibitem{ref11} 
 The Iris Dataset — scikit-learn 1.4.2 documentation. \url{https://scikit-learn.org/1.4/auto_examples/datasets/plot_Iris_dataset.html}
+
+\bibitem{ref12}
+J. Nocedal and S. J. Wright, "Numerical Optimization," 2nd ed. New York: Springer, 2006.
+
+\bibitem{ref13}
+R. Ward, X. Wu, and L. Bottou, "AdaGrad stepsizes: Sharp convergence over nonconvex landscapes," in \textit{Proc. of ICML}, 2019.
+
+\bibitem{ref14}
+A. C. Wilson, R. Roelofs, M. Stern, N. Srebro, and B. Recht, "The marginal value of adaptive gradient methods in machine learning," in \textit{Advances in Neural Information Processing Systems}, 2017.
 \end{thebibliography}
 
 \end{document}
