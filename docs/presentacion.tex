@@ -75,37 +75,53 @@
 \begin{columns}
 \begin{column}{0.5\textwidth}
 \begin{center}
-\begin{tikzpicture}[scale=0.9]
-% Superficie de error más realista
-\draw[thick, blue] plot[smooth, domain=-3:3] (\x, {0.2*\x*\x*\x*\x - 0.8*\x*\x + 2});
-\draw[->] (-3.5,0) -- (3.5,0) node[right] {Parámetros $\theta$};
-\draw[->] (0,0) -- (0,4) node[above] {Error $J(\theta)$};
+\begin{tikzpicture}[scale=0.6]
+% Dibujar la función de costo (paisaje montañoso) - más compacta
+\draw[thick, blue, domain=-2.5:2.5, smooth, samples=80] 
+    plot (\x, {0.4*(\x)^2 + 0.2*sin(2*\x r) + 1});
 
-% Múltiples puntos de descenso
-\filldraw[red] (-2,2.8) circle (2pt) node[above] {\small Inicio};
-\draw[->, thick, red] (-2,2.8) -- (-1.5,2.1);
-\draw[->, thick, red] (-1.5,2.1) -- (-1,1.6);
-\draw[->, thick, red] (-1,1.6) -- (-0.5,1.4);
-\filldraw[green] (-0.5,1.4) circle (2pt) node[below] {\small Meta};
+% Ejes coordenados - más pequeños
+\draw[->] (-2.8,0.5) -- (2.8,0.5) node[right] {\tiny $\theta$};
+\draw[->] (0,0.3) -- (0,2.5) node[above] {\tiny $J(\theta)$};
 
-% Gradiente
-\draw[->, thick, orange] (-2,2.8) -- (-1.3,2.5) node[midway, above] {$-\nabla J$};
+% Gradiente (flecha de pendiente) - más corta
+\draw[->, thick, orange, line width=1.5pt] 
+    (-1.5, {0.4*(-1.5)^2 + 0.2*sin(2*(-1.5) r) + 1}) -- 
+    (-1, {0.4*(-1.5)^2 + 0.2*sin(2*(-1.5) r) + 1 - 0.4}) 
+    node[midway, above, sloped, font=\tiny] {gradiente};
+
+% Mínimo global (valle)
+\filldraw[green!70!black] (0, 1) circle (2pt);
+\node[green!70!black, below, font=\tiny] at (0, 0.8) {Valle};
+
+% Trayectoria de descenso (línea punteada)
+\draw[dashed, red, thick, line width=1pt] 
+    (-1.5, {0.4*(-1.5)^2 + 0.2*sin(2*(-1.5) r) + 1}) -- 
+    (-1, {0.4*(-1)^2 + 0.2*sin(2*(-1) r) + 1}) --
+    (-0.5, {0.4*(-0.5)^2 + 0.2*sin(2*(-0.5) r) + 1}) --
+    (0, 1);
+
+% Niebla (área sombreada) - más compacta
+\fill[gray!20, opacity=0.7] 
+    (-2, 0.8) rectangle (-1, 2.2);
+\node[gray!60, font=\tiny] at (-1.5, 2) {Niebla};
+
 \end{tikzpicture}
 \end{center}
 \end{column}
 \begin{column}{0.5\textwidth}
-\textbf{Imagina un montañista perdido en la niebla:}
+\textbf{Montañista perdido en la niebla:}
 \begin{itemize}
-\item Solo puede ver el \textcolor{red}{\textbf{terreno local}}
+\item Solo ve el \textcolor{red}{\textbf{terreno local}}
 \item Quiere llegar al \textcolor{verdeClaro}{\textbf{valle más bajo}}
-\item Estrategia: seguir la \textcolor{orange}{\textbf{pendiente más empinada}} hacia abajo
+\item Estrategia: seguir la \textcolor{orange}{\textbf{pendiente más empinada}}
 \end{itemize}
 
-\vspace{0.5cm}
+\vspace{0.3cm}
 \textbf{En Machine Learning:}
 \begin{itemize}
 \item \textbf{Montaña} = función de error
-\item \textbf{Posición} = parámetros del modelo
+\item \textbf{Posición} = parámetros
 \item \textbf{Pendiente} = gradiente
 \item \textbf{Valle} = mejor solución
 \end{itemize}
@@ -127,17 +143,15 @@ Comparar experimentalmente cuatro técnicas de optimización:
 \begin{block}{Metodología}
 \begin{itemize}
 \item Implementación en Python desde cero
-\item Experimento con regresión logística
-\item Dataset Iris (clasificación binaria)
+\item Experimento con regresión logística en dataset Iris
 \item Análisis de curvas de convergencia
 \end{itemize}
 \end{block}
 
 \begin{block}{Conexión con Análisis Numérico}
 \begin{itemize}
-\item Comparación con métodos de segundo orden (Newton-Raphson)
-\item Análisis de convergencia y estabilidad numérica
-\item Trade-offs computacionales
+\item Comparación con métodos de segundo orden
+\item Análisis de convergencia y trade-offs computacionales
 \end{itemize}
 \end{block}
 \end{frame}
@@ -616,72 +630,6 @@ Los métodos estudiados representan diferentes estrategias para incorporar infor
 
 \vspace{0.5cm}
 \textcolor{azulUni}{\textbf{Mensaje final:}} La optimización es el corazón de la IA moderna
-\end{frame}
-
-\begin{frame}{Trabajos Futuros}
-\begin{block}{Extensiones Directas}
-\begin{itemize}
-\item Implementar otros optimizadores (Nadam, AMSGrad, AdaBound)
-\item Evaluar en redes neuronales profundas
-\item Estudiar el efecto de learning rate schedules
-\end{itemize}
-\end{block}
-
-\begin{block}{Análisis Numérico Avanzado}
-\begin{itemize}
-\item Desarrollar precondicionadores adaptativos
-\item Análisis de convergencia bajo diferentes condiciones
-\item Métodos híbridos con información de segundo orden
-\end{itemize}
-\end{block}
-
-\begin{block}{Investigación de Generalización}
-\begin{itemize}
-\item Estudiar mínimos "planos" vs. "afilados"
-\item Efecto de ruido en SGD para escapar mínimos locales
-\item Estrategias de regularización implícita
-\end{itemize}
-\end{block}
-\end{frame}
-
-\begin{frame}{Limitaciones y Trabajo Futuro}
-\begin{block}{Limitaciones del Estudio}
-\begin{itemize}
-\item Experimento en problema relativamente simple (Iris)
-\item Solo regresión logística (modelo lineal)
-\item Conjunto de datos pequeño
-\end{itemize}
-\end{block}
-
-\begin{block}{Extensiones Propuestas}
-\begin{itemize}
-\item Probar en redes neuronales profundas
-\item Evaluar generalización en datasets más grandes
-\item Implementar variantes adicionales (Nadam, AdamW, AMSGrad)
-\item Estudiar estrategias de learning rate scheduling
-\item Análisis de mínimos "planos" vs "afilados"
-\end{itemize}
-\end{block}
-\end{frame}
-
-\begin{frame}{Impacto en la Práctica}
-\begin{block}{En Aprendizaje Automático Moderno}
-\begin{itemize}
-\item Adam es estándar en deep learning
-\item SGD sigue siendo importante para generalización
-\item Momentum útil en problemas mal condicionados
-\item RMSProp popular en procesamiento de lenguaje natural
-\end{itemize}
-\end{block}
-
-\begin{exampleblock}{Aplicaciones Reales}
-\begin{itemize}
-\item \textbf{Visión por computadora}: Adam para entrenar CNNs
-\item \textbf{NLP}: RMSProp/Adam para RNNs y Transformers
-\item \textbf{Investigación}: SGD para estudios de generalización
-\item \textbf{Producción}: Híbridos para mejor rendimiento
-\end{itemize}
-\end{exampleblock}
 \end{frame}
 
 \begin{frame}{Mensajes Clave}
